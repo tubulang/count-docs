@@ -1,5 +1,6 @@
+All code generate from AI
 # how to use
-## precondition
+## precondition     
 Pull all repositories into the same folder
 
 ## Normal npm project: 
