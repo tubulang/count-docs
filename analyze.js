@@ -10,7 +10,6 @@ import { fileURLToPath } from 'url';
 import { glob } from 'glob';
 import { parse as babelParse } from '@babel/parser';
 import babelTraverse from '@babel/traverse';
-import doctrine from 'doctrine';
 import ts from 'typescript';
 
 // -----------------------------------------------------------------------------
@@ -18,29 +17,27 @@ import ts from 'typescript';
 // -----------------------------------------------------------------------------
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const defaultTsCompilerOptions = {
+    allowJs: true,
+    checkJs: false,
+    // Node-style resolution ensures re-exported symbols can be resolved to their source files
+    moduleResolution: ts.ModuleResolutionKind.NodeJs,
+    module: ts.ModuleKind.ESNext,
+    target: ts.ScriptTarget.ES2020,
+    jsx: ts.JsxEmit.React,
+};
 
 function hasValidJSDoc(comments) {
     if (!comments || comments.length === 0) { return false; }
-    // V12 变更: 简化 JSDoc 检查, TS API 返回的是 {text, kind} 数组
-    const docText = comments.map(c => c.text).join('\n');
-    if (docText.trim().length === 0) return false;
-    
-    // 基础检查：必须包含描述或标签
-    try {
-        const doc = doctrine.parse(`/**\n${docText}\n*/`, { unwrap: true });
-        return doc.description.length > 0 || doc.tags.length > 0;
-    } catch (e) { return false; }
+    // TS 的 comments 仅在存在 /** */ 时才会出现
+    return true;
 }
 // V12 变更: Babel 的 JSDoc 检查
 function hasValidJSDocBabel(node) {
     const comments = node?.leadingComments;
     if (!comments || comments.length === 0) { return false; }
     const lastComment = comments[comments.length - 1];
-    if (lastComment.type !== 'CommentBlock' || !lastComment.value.startsWith('*')) { return false; }
-    try {
-        const doc = doctrine.parse(`/*${lastComment.value}*/`, { unwrap: true });
-        return doc.description.length > 0 || doc.tags.length > 0;
-    } catch (e) { return false; }
+    return lastComment.type === 'CommentBlock' && lastComment.value.startsWith('*');
 }
 
 function symbolBelongsToPackage(symbol, packageRoot) {
@@ -202,7 +199,7 @@ async function parseTsFile(filePath, results) {
     
     let program;
     try {
-        program = ts.createProgram([filePath], { allowJs: true, checkJs: false });
+        program = ts.createProgram([filePath], defaultTsCompilerOptions);
     } catch (e) {
         results.errors.push(`TS Program creation failed: ${e.message}`);
         return newFilesToAnalyze;
